@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Big Five - Multiplayer</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #f5deb3 0%, #daa520 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        #lobby {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 { color: #8b4513; margin-bottom: 30px; }
+        input {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            background: #228b22;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        button:hover { background: #1a6b1a; }
+        #gameContainer {
+            display: none;
+            width: 95vw;
+            height: 95vh;
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+        }
+        #gameHeader {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background: #8b4513;
+            color: white;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        #playAreas {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 30px 0;
+        }
+        .playArea {
+            flex: 1;
+            border: 3px dashed #8b4513;
+            border-radius: 15px;
+            padding: 15px;
+            background: #fffaf0;
+            min-height: 220px;
+            cursor: pointer;
+        }
+        .playArea:hover { background: #f0fff0; border-color: #228b22; }
+        #personalStack {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            padding: 20px;
+            background: #f5deb3;
+            border-radius: 15px;
+        }
+        .card {
+            width: 100px;
+            height: 140px;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+        }
+        .card:hover { transform: translateY(-10px) scale(1.05); }
+        .card.selected {
+            transform: translateY(-15px);
+            border-color: #228b22;
+            box-shadow: 0 15px 30px rgba(34, 139, 34, 0.5);
+        }
+        .card.bigfive { background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); }
+        .card.special { background: linear-gradient(135deg, #87ceeb 0%, #4682b4 100%); }
+        .card.combination { background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%); }
+        #turnIndicator {
+            text-align: center;
+            padding: 15px;
+            background: #228b22;
+            color: white;
+            border-radius: 10px;
+            font-size: 20px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        #turnIndicator.notYourTurn { background: #dc143c; }
+        #winnerModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 50px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            text-align: center;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="lobby">
+        <h1>🦁 Big Five Safari 🐘</h1>
+        <input type="text" id="playerName" placeholder="Jouw naam" />
+        <button onclick="createRoom()">Nieuw Spel Starten</button>
+        <br><br>
+        <input type="text" id="roomCodeInput" placeholder="Room Code" />
+        <button onclick="joinRoom()">Deelnemen aan Spel</button>
+        <p id="errorMessage" style="color: red; margin-top: 20px;"></p>
+    </div>
+
+    <div id="gameContainer">
+        <div id="gameHeader">
+            <div>
+                <strong id="player0Name">Speler 1</strong> - Score: <span id="player0Score">0</span>
+            </div>
+            <div id="roomCode">Room: </div>
+            <div>
+                <strong id="player1Name">Speler 2</strong> - Score: <span id="player1Score">0</span>
+            </div>
+        </div>
+
+        <div id="turnIndicator">Wachten op spelers...</div>
+
+        <div id="playAreas">
+            <div class="playArea" onclick="selectArea(0)">
+                <h3>Speelvlak 1</h3>
+                <div id="area0Cards"></div>
+            </div>
+            <div class="playArea" onclick="selectArea(1)">
+                <h3>Speelvlak 2</h3>
+                <div id="area1Cards"></div>
+            </div>
+            <div class="playArea" onclick="selectArea(2)">
+                <h3>Speelvlak 3</h3>
+                <div id="area2Cards"></div>
+            </div>
+        </div>
+
+        <div id="personalStack"></div>
+    </div>
+
+    <div id="winnerModal">
+        <h2>🏆 Gefeliciteerd! 🏆</h2>
+        <p id="winnerText"></p>
+        <button onclick="location.reload()">Nieuw Spel</button>
+    </div>
+
+    <script>
+        const socket = io();
+        let gameState = null;
+        let myPlayerId = null;
+        let currentRoomId = null;
+        let selectedCard = null;
+
+        const animalEmojis = {
+            'BUFFEL': '🐃', 'OLIFANT': '🐘', 'LUIPAARD': '🐆',
+            'LEEUW': '🦁', 'NEUSHOORN': '🦏', 'GIRAFFE': '🦒',
+            'ZEBRA': '🦓', 'IJSBEER': '🐻‍❄️', 'KROKODIL': '🐊',
+            'KAMELEON': '🦎', 'AASGIER': '🦅', 'BIG_FIVE_SPOTTER': '🔭'
+        };
+
+        function createRoom() {
+            const playerName = document.getElementById('playerName').value.trim();
+            if (!playerName) return alert('Voer je naam in');
+            socket.emit('createRoom', { playerName });
+        }
+
+        function joinRoom() {
+            const playerName = document.getElementById('playerName').value.trim();
+            const roomCode = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+            if (!playerName || !roomCode) return alert('Voer naam en code in');
+            socket.emit('joinRoom', { roomId: roomCode, playerName });
+        }
+
+        socket.on('roomCreated', ({ roomId, playerId }) => {
+            currentRoomId = roomId;
+            myPlayerId = playerId;
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            document.getElementById('roomCode').textContent = `Room: ${roomId}`;
+            document.getElementById('turnIndicator').textContent = 'Wachten op tweede speler...';
+        });
+
+        socket.on('roomJoined', ({ roomId, playerId }) => {
+            currentRoomId = roomId;
+            myPlayerId = playerId;
+            document.getElementById('lobby').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            document.getElementById('roomCode').textContent = `Room: ${roomId}`;
+        });
+
+        socket.on('gameStarted', ({ gameState: state, yourPlayerId }) => {
+            gameState = state;
+            myPlayerId = yourPlayerId;
+            renderGame();
+        });
+
+        socket.on('gameStateUpdated', ({ gameState: state }) => {
+            gameState = state;
+            renderGame();
+            if (gameState.winner !== null) showWinner();
+        });
+
+        socket.on('error', ({ message }) => {
+            alert(message);
+        });
+
+        function renderGame() {
+            if (!gameState) return;
+
+            gameState.players.forEach((player, idx) => {
+                document.getElementById(`player${idx}Name`).textContent = player.name;
+                document.getElementById(`player${idx}Score`).textContent = player.score;
+            });
+
+            const isMyTurn = gameState.currentPlayer === myPlayerId;
+            document.getElementById('turnIndicator').textContent = isMyTurn ? '🎯 Jouw beurt!' : '⏳ Wachten...';
+            document.getElementById('turnIndicator').className = isMyTurn ? '' : 'notYourTurn';
+
+            gameState.playAreas.forEach((area, idx) => {
+                const areaEl = document.getElementById(`area${idx}Cards`);
+                areaEl.innerHTML = area.cards.map(c => 
+                    `<div style="font-size:30px">${animalEmojis[c.animal || c.special]}</div>`
+                ).join('');
+            });
+
+            const myPlayer = gameState.players[myPlayerId];
+            const stackEl = document.getElementById('personalStack');
+            stackEl.innerHTML = myPlayer.personalStack.filter(c => !c.hidden).map(card => {
+                const emoji = animalEmojis[card.animal || card.special];
+                return `<div class="card ${card.type}" onclick="selectCard('${card.id}')">
+                    <div style="font-size:40px">${emoji}</div>
+                    <div style="font-size:12px">${card.animal || card.special || 'COMBO'}</div>
+                </div>`;
+            }).join('');
+        }
+
+        function selectCard(cardId) {
+            if (gameState.currentPlayer !== myPlayerId) return alert('Niet jouw beurt!');
+            selectedCard = gameState.players[myPlayerId].personalStack.find(c => c.id === cardId);
+            alert('Kaart geselecteerd! Klik nu op een speelvlak.');
+        }
+
+        function selectArea(areaId) {
+            if (!selectedCard) return alert('Selecteer eerst een kaart!');
+            socket.emit('playCard', {
+                roomId: currentRoomId,
+                playerId: myPlayerId,
+                cardId: selectedCard.id,
+                targetAreaId: areaId
+            });
+            selectedCard = null;
+        }
+
+        function showWinner() {
+            const winner = gameState.players[gameState.winner];
+            document.getElementById('winnerText').textContent = 
+                `${winner.name} heeft gewonnen met ${winner.score} punten! 🎉`;
+            document.getElementById('winnerModal').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
