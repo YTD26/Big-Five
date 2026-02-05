@@ -1,0 +1,19 @@
+{
+  "name": "big-five-multiplayer",
+  "version": "1.0.0",
+  "description": "Multiplayer Big Five Safari kaartspel",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["game", "socketio", "multiplayer"],
+  "author": "Jouw Naam",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "socket.io": "^4.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
