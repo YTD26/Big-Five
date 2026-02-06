@@ -104,15 +104,21 @@ class GameRoom {
         };
     }
 
-    getGameStateForPlayer(playerId) {
-        const state = JSON.parse(JSON.stringify(this.gameState));
-        state.players.forEach((p, idx) => {
-            if (idx !== playerId) {
-                p.personalStack = p.personalStack.map(() => ({ hidden: true }));
-            }
-        });
-        return state;
-    }
+ getGameStateForPlayer(playerId) {
+    // Return game state with hidden opponent stack
+    const state = JSON.parse(JSON.stringify(this.gameState));
+    state.players.forEach((p, idx) => {
+        if (idx !== playerId) {
+            // Toon kaart achterkant (55.png) voor tegenstander kaarten
+            p.personalStack = p.personalStack.map(() => ({ 
+                hidden: true, 
+                type: 'back',
+                id: 'card-back'
+            }));
+        }
+    });
+    return state;
+}
 }
 
 io.on('connection', (socket) => {
