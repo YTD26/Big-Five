@@ -606,293 +606,304 @@
     </div>
 
     <script>
-        const socket = io();
-        let gameState = null;
-        let myPlayerId = null;
-        let currentRoomId = null;
-        let selectedCard = null;
+    const socket = io();
+    let gameState = null;
+    let myPlayerId = null;
+    let currentRoomId = null;
+    let selectedCard = null;
 
-        const animalEmojis = {
-            'BUFFEL': '🐃',
-            'OLIFANT': '🐘',
-            'LUIPAARD': '🐆',
-            'LEEUW': '🦁',
-            'NEUSHOORN': '🦏',
-            'GIRAFFE': '🦒',
-            'ZEBRA': '🦓',
-            'IJSBEER': '🐻‍❄️',
-            'KROKODIL': '🐊',
-            'KAMELEON': '🦎',
-            'AASGIER': '🦅',
-            'BIG_FIVE_SPOTTER': '🔭'
-        };
+    const animalEmojis = {
+        'BUFFEL': '🐃',
+        'OLIFANT': '🐘',
+        'LUIPAARD': '🐆',
+        'LEEUW': '🦁',
+        'NEUSHOORN': '🦏',
+        'GIRAFFE': '🦒',
+        'ZEBRA': '🦓',
+        'IJSBEER': '🐻‍❄️',
+        'KROKODIL': '🐊',
+        'KAMELEON': '🦎',
+        'AASGIER': '🦅',
+        'BIG_FIVE_SPOTTER': '🔭'
+    };
 
-        // Mapping van kaarten naar image nummers - PAS DIT AAN NAAR JOUW BESTANDEN
-        const cardImageMapping = {
-            'BUFFEL': [1, 2, 3, 4, 5, 6, 7],
-            'OLIFANT': [8, 9, 10, 11, 12, 13, 14],
-            'LUIPAARD': [15, 16, 17, 18, 19, 20, 21],
-            'LEEUW': [22, 23, 24, 25, 26, 27, 28],
-            'NEUSHOORN': [29, 30, 31, 32, 33, 34, 35],
-            'GIRAFFE': [36, 37],
-            'BIG_FIVE_SPOTTER': [38, 39],
-            'IJSBEER': [40, 41],
-            'ZEBRA': [42, 43],
-            'AASGIER': [44, 45],
-            'KAMELEON': [46, 47],
-            'KROKODIL': [48, 49],
-            'COMBO': [50, 51, 52, 53, 54]
-        };
+    // Mapping van kaarten naar image nummers - AANGEPAST NAAR JOUW BESTANDEN
+    const cardImageMapping = {
+        // Big Five kaarten (7 per dier)
+        'LEEUW': [1, 2, 3, 4, 5, 6, 7],
+        'OLIFANT': [8, 9, 10, 11, 12, 13, 14],
+        'LUIPAARD': [15, 16, 17, 18, 19, 20, 21],
+        'BUFFEL': [22, 23, 24, 25, 26, 27, 28],
+        'NEUSHOORN': [29, 30, 31, 32, 33, 34, 35],
+        
+        // Speciale kaarten (2 per type)
+        'KAMELEON': [41, 42],
+        'ZEBRA': [43, 44],
+        'KROKODIL': [45, 46],
+        'GIRAFFE': [47, 48],
+        'AASGIER': [49, 50],
+        'IJSBEER': [51, 52],
+        'BIG_FIVE_SPOTTER': [53, 54],
+        
+        // Combinatie kaarten
+        'COMBO_BUFFEL_LUIPAARD': 39,
+        'COMBO_BUFFEL_NEUSHOORN': 38,
+        'COMBO_LEEUW_LUIPAARD': 37,
+        'COMBO_LEEUW_OLIFANT': 36,
+        'COMBO_NEUSHOORN_OLIFANT': 40,
+        'COMBO_OLIFANT_NEUSHOORN': 40
+    };
 
-        function getCardImagePath(card) {
-            let imageNumber = 1;
-            
-            if (card.type === 'bigfive') {
-                const cardIndex = parseInt(card.id.split('-').pop()) || 0;
-                const animalNumbers = cardImageMapping[card.animal];
-                imageNumber = animalNumbers ? animalNumbers[cardIndex % animalNumbers.length] : 1;
-            } 
-            else if (card.type === 'special') {
-                const cardIndex = parseInt(card.id.split('-').pop()) || 0;
-                const specialNumbers = cardImageMapping[card.special];
-                imageNumber = specialNumbers ? specialNumbers[cardIndex % specialNumbers.length] : 36;
-            }
-            else if (card.type === 'combination') {
-                const cardIndex = parseInt(card.id.split('-').pop()) || 0;
-                imageNumber = cardImageMapping['COMBO'][cardIndex] || 50;
-            }
-            
-            // Gebruik %20 voor spatie in URL
-            return `/big%20five/${imageNumber}.png`;
+    function getCardImagePath(card) {
+        let imageNumber = 55; // Default naar achterkant
+        
+        if (card.type === 'bigfive') {
+            const cardIndex = parseInt(card.id.split('-').pop()) || 0;
+            const animalNumbers = cardImageMapping[card.animal];
+            imageNumber = animalNumbers ? animalNumbers[cardIndex % animalNumbers.length] : 1;
+        } 
+        else if (card.type === 'special') {
+            const cardIndex = parseInt(card.id.split('-').pop()) || 0;
+            const specialNumbers = cardImageMapping[card.special];
+            imageNumber = specialNumbers ? specialNumbers[cardIndex % specialNumbers.length] : 41;
         }
-
-        function createRoom() {
-            const playerName = document.getElementById('playerName').value.trim();
-            if (!playerName) {
-                showError('Voer je naam in');
-                return;
-            }
-            socket.emit('createRoom', { playerName });
+        else if (card.type === 'combination') {
+            // Sorteer de dieren alfabetisch voor consistente key
+            const animals = [...card.animals].sort();
+            const comboKey = `COMBO_${animals[0]}_${animals[1]}`;
+            imageNumber = cardImageMapping[comboKey] || 36;
         }
+        
+        return `/big%20five/${imageNumber}.png`;
+    }
 
-        function joinRoom() {
-            const playerName = document.getElementById('playerName').value.trim();
-            const roomCode = document.getElementById('roomCodeInput').value.trim().toUpperCase();
-            
-            if (!playerName || !roomCode) {
-                showError('Voer je naam en room code in');
-                return;
-            }
-            
-            socket.emit('joinRoom', { roomId: roomCode, playerName });
+    function createRoom() {
+        const playerName = document.getElementById('playerName').value.trim();
+        if (!playerName) {
+            showError('Voer je naam in');
+            return;
         }
+        socket.emit('createRoom', { playerName });
+    }
 
-        function showError(message) {
-            const errorEl = document.getElementById('errorMessage');
-            errorEl.textContent = '⚠️ ' + message;
-            errorEl.style.display = 'block';
-            setTimeout(() => {
-                errorEl.style.display = 'none';
-            }, 3000);
+    function joinRoom() {
+        const playerName = document.getElementById('playerName').value.trim();
+        const roomCode = document.getElementById('roomCodeInput').value.trim().toUpperCase();
+        
+        if (!playerName || !roomCode) {
+            showError('Voer je naam en room code in');
+            return;
         }
+        
+        socket.emit('joinRoom', { roomId: roomCode, playerName });
+    }
 
-        socket.on('roomCreated', ({ roomId, playerId }) => {
-            currentRoomId = roomId;
-            myPlayerId = playerId;
-            document.getElementById('lobby').style.display = 'none';
-            document.getElementById('gameContainer').style.display = 'block';
-            document.getElementById('roomCode').textContent = `ROOM: ${roomId}`;
-            document.getElementById('turnIndicator').textContent = '⏳ Wachten op tweede speler...';
-        });
+    function showError(message) {
+        const errorEl = document.getElementById('errorMessage');
+        errorEl.textContent = '⚠️ ' + message;
+        errorEl.style.display = 'block';
+        setTimeout(() => {
+            errorEl.style.display = 'none';
+        }, 3000);
+    }
 
-        socket.on('roomJoined', ({ roomId, playerId }) => {
-            currentRoomId = roomId;
-            myPlayerId = playerId;
-            document.getElementById('lobby').style.display = 'none';
-            document.getElementById('gameContainer').style.display = 'block';
-            document.getElementById('roomCode').textContent = `ROOM: ${roomId}`;
-        });
+    socket.on('roomCreated', ({ roomId, playerId }) => {
+        currentRoomId = roomId;
+        myPlayerId = playerId;
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'block';
+        document.getElementById('roomCode').textContent = `ROOM: ${roomId}`;
+        document.getElementById('turnIndicator').textContent = '⏳ Wachten op tweede speler...';
+    });
 
-        socket.on('gameStarted', ({ gameState: state, yourPlayerId }) => {
-            gameState = state;
-            myPlayerId = yourPlayerId;
-            renderGame();
-        });
+    socket.on('roomJoined', ({ roomId, playerId }) => {
+        currentRoomId = roomId;
+        myPlayerId = playerId;
+        document.getElementById('lobby').style.display = 'none';
+        document.getElementById('gameContainer').style.display = 'block';
+        document.getElementById('roomCode').textContent = `ROOM: ${roomId}`;
+    });
 
-        socket.on('gameStateUpdated', ({ gameState: state }) => {
-            gameState = state;
-            renderGame();
+    socket.on('gameStarted', ({ gameState: state, yourPlayerId }) => {
+        gameState = state;
+        myPlayerId = yourPlayerId;
+        renderGame();
+    });
+
+    socket.on('gameStateUpdated', ({ gameState: state }) => {
+        gameState = state;
+        renderGame();
+        
+        if (gameState.winner !== null) {
+            showWinner();
+        }
+    });
+
+    socket.on('playerDisconnected', ({ message }) => {
+        alert('⚠️ ' + message);
+        setTimeout(() => location.reload(), 2000);
+    });
+
+    socket.on('error', ({ message }) => {
+        showError(message);
+    });
+
+    function renderGame() {
+        if (!gameState) return;
+
+        // Update player info cards
+        gameState.players.forEach((player, idx) => {
+            document.getElementById(`player${idx}Name`).textContent = `${idx === myPlayerId ? '👤' : '🎮'} ${player.name}`;
+            document.getElementById(`player${idx}Score`).textContent = player.score;
+            document.getElementById(`player${idx}Cards`).textContent = player.personalStack.length;
+            document.getElementById(`player${idx}Position`).textContent = player.position;
             
-            if (gameState.winner !== null) {
-                showWinner();
-            }
-        });
-
-        socket.on('playerDisconnected', ({ message }) => {
-            alert('⚠️ ' + message);
-            setTimeout(() => location.reload(), 2000);
-        });
-
-        socket.on('error', ({ message }) => {
-            showError(message);
-        });
-
-        function renderGame() {
-            if (!gameState) return;
-
-            // Update player info cards
-            gameState.players.forEach((player, idx) => {
-                document.getElementById(`player${idx}Name`).textContent = `${idx === myPlayerId ? '👤' : '🎮'} ${player.name}`;
-                document.getElementById(`player${idx}Score`).textContent = player.score;
-                document.getElementById(`player${idx}Cards`).textContent = player.personalStack.length;
-                document.getElementById(`player${idx}Position`).textContent = player.position;
-                
-                const playerCard = document.getElementById(`player${idx}Card`);
-                if (idx === gameState.currentPlayer) {
-                    playerCard.classList.add('active');
-                } else {
-                    playerCard.classList.remove('active');
-                }
-
-                document.getElementById(`routeLabel${idx}`).textContent = player.name + ':';
-            });
-
-            // Update turn indicator
-            const isMyTurn = gameState.currentPlayer === myPlayerId;
-            const turnIndicator = document.getElementById('turnIndicator');
-            if (isMyTurn) {
-                turnIndicator.textContent = '🎯 Jouw beurt! Selecteer een kaart en klik op een speelvlak.';
-                turnIndicator.classList.remove('notYourTurn');
+            const playerCard = document.getElementById(`player${idx}Card`);
+            if (idx === gameState.currentPlayer) {
+                playerCard.classList.add('active');
             } else {
-                const opponentName = gameState.players[(myPlayerId + 1) % 2].name;
-                turnIndicator.textContent = `⏳ ${opponentName} is aan de beurt...`;
-                turnIndicator.classList.add('notYourTurn');
+                playerCard.classList.remove('active');
             }
 
-            // Render play areas met afbeeldingen
-            gameState.playAreas.forEach((area, idx) => {
-                const areaEl = document.getElementById(`area${idx}Cards`);
-                areaEl.innerHTML = '';
+            document.getElementById(`routeLabel${idx}`).textContent = player.name + ':';
+        });
+
+        // Update turn indicator
+        const isMyTurn = gameState.currentPlayer === myPlayerId;
+        const turnIndicator = document.getElementById('turnIndicator');
+        if (isMyTurn) {
+            turnIndicator.textContent = '🎯 Jouw beurt! Selecteer een kaart en klik op een speelvlak.';
+            turnIndicator.classList.remove('notYourTurn');
+        } else {
+            const opponentName = gameState.players[(myPlayerId + 1) % 2].name;
+            turnIndicator.textContent = `⏳ ${opponentName} is aan de beurt...`;
+            turnIndicator.classList.add('notYourTurn');
+        }
+
+        // Render play areas met afbeeldingen
+        gameState.playAreas.forEach((area, idx) => {
+            const areaEl = document.getElementById(`area${idx}Cards`);
+            areaEl.innerHTML = '';
+            
+            area.cards.forEach(card => {
+                const miniCard = document.createElement('div');
+                miniCard.className = `area-card-mini ${card.type}`;
                 
-                area.cards.forEach(card => {
-                    const miniCard = document.createElement('div');
-                    miniCard.className = `area-card-mini ${card.type}`;
-                    
-                    const imagePath = getCardImagePath(card);
-                    miniCard.innerHTML = `
-                        <img src="${imagePath}" 
-                             alt="kaart" 
-                             onerror="this.style.display='none'; this.parentElement.innerHTML='${animalEmojis[card.animal || card.special || card.animals?.[0]] || '🎴'}';">
-                    `;
-                    areaEl.appendChild(miniCard);
-                });
+                const imagePath = getCardImagePath(card);
+                miniCard.innerHTML = `
+                    <img src="${imagePath}" 
+                         alt="kaart" 
+                         onerror="this.style.display='none'; this.parentElement.innerHTML='${animalEmojis[card.animal || card.special || card.animals?.[0]] || '🎴'}';">
+                `;
+                areaEl.appendChild(miniCard);
+            });
 
-                const areaDiv = document.querySelector(`[data-area="${idx}"]`);
-                if (area.cards.length === 5) {
-                    areaDiv.style.borderColor = '#FFD700';
-                    areaDiv.style.borderStyle = 'solid';
-                } else {
-                    areaDiv.style.borderColor = '#8B4513';
-                    areaDiv.style.borderStyle = 'dashed';
+            const areaDiv = document.querySelector(`[data-area="${idx}"]`);
+            if (area.cards.length === 5) {
+                areaDiv.style.borderColor = '#FFD700';
+                areaDiv.style.borderStyle = 'solid';
+            } else {
+                areaDiv.style.borderColor = '#8B4513';
+                areaDiv.style.borderStyle = 'dashed';
+            }
+        });
+
+        // Render personal stack met afbeeldingen
+        const myPlayer = gameState.players[myPlayerId];
+        const stackEl = document.getElementById('personalStack');
+        stackEl.innerHTML = '';
+        
+        myPlayer.personalStack.forEach(card => {
+            if (!card.hidden) {
+                const cardEl = createCardElement(card);
+                cardEl.onclick = () => selectCard(card);
+                if (selectedCard && selectedCard.id === card.id) {
+                    cardEl.classList.add('selected');
                 }
-            });
-
-            // Render personal stack met afbeeldingen
-            const myPlayer = gameState.players[myPlayerId];
-            const stackEl = document.getElementById('personalStack');
-            stackEl.innerHTML = '';
-            
-            myPlayer.personalStack.forEach(card => {
-                if (!card.hidden) {
-                    const cardEl = createCardElement(card);
-                    cardEl.onclick = () => selectCard(card);
-                    if (selectedCard && selectedCard.id === card.id) {
-                        cardEl.classList.add('selected');
-                    }
-                    stackEl.appendChild(cardEl);
-                }
-            });
-
-            renderSafariRoutes();
-        }
-
-        function createCardElement(card) {
-            const cardEl = document.createElement('div');
-            cardEl.className = `card ${card.type}`;
-            
-            const imagePath = getCardImagePath(card);
-            
-            // Gebruik de échte afbeelding
-            cardEl.innerHTML = `
-                <img src="${imagePath}" 
-                     alt="${card.animal || card.special || 'Kaart'}" 
-                     onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding:20px; text-align:center; font-size:50px;\\'>${animalEmojis[card.animal || card.special] || '🎴'}</div>';"
-                     loading="lazy">
-            `;
-            
-            return cardEl;
-        }
-
-        function selectCard(card) {
-            const isMyTurn = gameState.currentPlayer === myPlayerId;
-            if (!isMyTurn) {
-                showError('Het is niet jouw beurt!');
-                return;
+                stackEl.appendChild(cardEl);
             }
+        });
+
+        renderSafariRoutes();
+    }
+
+    function createCardElement(card) {
+        const cardEl = document.createElement('div');
+        cardEl.className = `card ${card.type}`;
+        
+        const imagePath = getCardImagePath(card);
+        
+        // Gebruik de échte afbeelding
+        cardEl.innerHTML = `
+            <img src="${imagePath}" 
+                 alt="${card.animal || card.special || 'Kaart'}" 
+                 onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\\'padding:20px; text-align:center; font-size:50px;\\'>${animalEmojis[card.animal || card.special] || '🎴'}</div>';"
+                 loading="lazy">
+        `;
+        
+        return cardEl;
+    }
+
+    function selectCard(card) {
+        const isMyTurn = gameState.currentPlayer === myPlayerId;
+        if (!isMyTurn) {
+            showError('Het is niet jouw beurt!');
+            return;
+        }
+        
+        selectedCard = card;
+        renderGame();
+    }
+
+    function selectArea(areaId) {
+        if (!selectedCard) {
+            showError('Selecteer eerst een kaart uit jouw hand!');
+            return;
+        }
+
+        const isMyTurn = gameState.currentPlayer === myPlayerId;
+        if (!isMyTurn) {
+            showError('Het is niet jouw beurt!');
+            return;
+        }
+
+        socket.emit('playCard', {
+            roomId: currentRoomId,
+            playerId: myPlayerId,
+            cardId: selectedCard.id,
+            targetAreaId: areaId
+        });
+
+        selectedCard = null;
+    }
+
+    function renderSafariRoutes() {
+        gameState.players.forEach((player, playerIdx) => {
+            const routeEl = document.getElementById(`safariRoute${playerIdx}`);
+            routeEl.innerHTML = '';
             
-            selectedCard = card;
-            renderGame();
-        }
-
-        function selectArea(areaId) {
-            if (!selectedCard) {
-                showError('Selecteer eerst een kaart uit jouw hand!');
-                return;
-            }
-
-            const isMyTurn = gameState.currentPlayer === myPlayerId;
-            if (!isMyTurn) {
-                showError('Het is niet jouw beurt!');
-                return;
-            }
-
-            socket.emit('playCard', {
-                roomId: currentRoomId,
-                playerId: myPlayerId,
-                cardId: selectedCard.id,
-                targetAreaId: areaId
-            });
-
-            selectedCard = null;
-        }
-
-        function renderSafariRoutes() {
-            gameState.players.forEach((player, playerIdx) => {
-                const routeEl = document.getElementById(`safariRoute${playerIdx}`);
-                routeEl.innerHTML = '';
+            for (let i = 1; i <= 10; i++) {
+                const step = document.createElement('div');
+                step.className = 'route-step';
+                step.textContent = i;
                 
-                for (let i = 1; i <= 10; i++) {
-                    const step = document.createElement('div');
-                    step.className = 'route-step';
-                    step.textContent = i;
-                    
-                    if (player.position > i) {
-                        step.classList.add('completed');
-                    } else if (player.position === i) {
-                        step.classList.add('current');
-                    }
-                    
-                    routeEl.appendChild(step);
+                if (player.position > i) {
+                    step.classList.add('completed');
+                } else if (player.position === i) {
+                    step.classList.add('current');
                 }
-            });
-        }
+                
+                routeEl.appendChild(step);
+            }
+        });
+    }
 
-        function showWinner() {
-            const winner = gameState.players[gameState.winner];
-            document.getElementById('winnerText').textContent = 
-                `${winner.name} heeft gewonnen met ${winner.score} punten! 🎉`;
-            document.getElementById('winnerModal').style.display = 'flex';
-        }
-    </script>
+    function showWinner() {
+        const winner = gameState.players[gameState.winner];
+        document.getElementById('winnerText').textContent = 
+            `${winner.name} heeft gewonnen met ${winner.score} punten! 🎉`;
+        document.getElementById('winnerModal').style.display = 'flex';
+    }
+</script>
 </body>
 </html>
