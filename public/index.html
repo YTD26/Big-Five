@@ -655,27 +655,32 @@
     };
 
     function getCardImagePath(card) {
-        let imageNumber = 55; // Default naar achterkant
-        
-        if (card.type === 'bigfive') {
-            const cardIndex = parseInt(card.id.split('-').pop()) || 0;
-            const animalNumbers = cardImageMapping[card.animal];
-            imageNumber = animalNumbers ? animalNumbers[cardIndex % animalNumbers.length] : 1;
-        } 
-        else if (card.type === 'special') {
-            const cardIndex = parseInt(card.id.split('-').pop()) || 0;
-            const specialNumbers = cardImageMapping[card.special];
-            imageNumber = specialNumbers ? specialNumbers[cardIndex % specialNumbers.length] : 41;
-        }
-        else if (card.type === 'combination') {
-            // Sorteer de dieren alfabetisch voor consistente key
-            const animals = [...card.animals].sort();
-            const comboKey = `COMBO_${animals[0]}_${animals[1]}`;
-            imageNumber = cardImageMapping[comboKey] || 36;
-        }
-        
-        return `/big%20five/${imageNumber}.png`;
+    // Als dit een verborgen kaart is (achterkant)
+    if (card.hidden || card.type === 'back') {
+        return `/big%20five/55.png`;
     }
+    
+    let imageNumber = 55; // Default naar achterkant
+    
+    if (card.type === 'bigfive') {
+        const cardIndex = parseInt(card.id.split('-').pop()) || 0;
+        const animalNumbers = cardImageMapping[card.animal];
+        imageNumber = animalNumbers ? animalNumbers[cardIndex % animalNumbers.length] : 1;
+    } 
+    else if (card.type === 'special') {
+        const cardIndex = parseInt(card.id.split('-').pop()) || 0;
+        const specialNumbers = cardImageMapping[card.special];
+        imageNumber = specialNumbers ? specialNumbers[cardIndex % specialNumbers.length] : 41;
+    }
+    else if (card.type === 'combination') {
+        const animals = [...card.animals].sort();
+        const comboKey = `COMBO_${animals[0]}_${animals[1]}`;
+        imageNumber = cardImageMapping[comboKey] || 36;
+    }
+    
+    return `/big%20five/${imageNumber}.png`;
+}
+
 
     function createRoom() {
         const playerName = document.getElementById('playerName').value.trim();
